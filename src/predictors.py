@@ -10,7 +10,7 @@ from langchain_ollama import ChatOllama
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 
-class Run:
+class Predictor:
     def __init__(self):
         self.PROJECT_ROOT = os.getcwd()
         self.OLLAMA_BIN = os.path.join(self.PROJECT_ROOT,"ollama","bin","ollama",)
@@ -24,7 +24,7 @@ class Run:
         self.MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY")
 
 
-    def run(self, provider="Ollama", model="qwen3.5:4b", messages=""):
+    def predict(self, provider="Ollama", model="qwen3.5:4b", messages=""):
         self.MODEL = model
         answer = None
 
@@ -61,7 +61,6 @@ class Run:
         # Check whether an Ollama server is already running, so we don't stack process after process
         try:
             with urllib.request.urlopen(f"http://{self.OLLAMA_HOST}:{self.OLLAMA_PORT}/api/tags",timeout=1,):
-                print("Ollama server is already running.")
                 return None
         except (urllib.error.URLError, TimeoutError):
             pass
