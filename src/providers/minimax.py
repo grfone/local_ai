@@ -2,17 +2,24 @@ import os
 
 import requests
 from dotenv import load_dotenv
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+)
 
-from src.models.messages import Message
-from src.providers.base import BaseProvider
+from src.models.model import Model
 
 
-class MiniMaxProvider(BaseProvider):
+class MiniMaxModel(Model):
 
     API_URL = "https://api.minimax.io/v1/text/chatcompletion_v2"
 
-    def __init__(self, model: str = "M3"):
-        # Load API key from .env
+    def __init__(
+        self,
+        model: str = "M3",
+    ):
         load_dotenv()
 
         self.model = f"MiniMax-{model}"
@@ -24,15 +31,14 @@ class MiniMaxProvider(BaseProvider):
                 "Add it to your .env file."
             )
 
-    def predict(self, messages: list[Message]) -> str:
-        # Convert our messages to MiniMax format
+    def generate(
+        self,
+        messages: list[BaseMessage],
+    ) -> str:
         payload = {
             "model": self.model,
             "messages": [
-                {
-                    "role": message.role,
-                    "content": message.content,
-                }
+                self._to_minimax_message(message)
                 for message in messages
             ],
         }
@@ -50,17 +56,49 @@ class MiniMaxProvider(BaseProvider):
         response.raise_for_status()
 
         data = response.json()
-        base_resp = data.get("base_resp", {})
+
+        base_resp = data.get(
+            "base_resp",
+            {},
+        )
 
         if base_resp.get("status_code", 0) != 0:
             raise RuntimeError(
-                f"MiniMax API error: "
+                "MiniMax API error: "
                 f"{base_resp.get('status_msg', 'Unknown error')}"
             )
 
         choices = data.get("choices")
 
         if not choices:
-            raise RuntimeError("MiniMax returned no choices.")
+            raise RuntimeError(
+                "MiniMax returned no choices."
+            )
 
-        return choices[0]["message"]["content"]
+        return str(
+            choices[0]["message"]["content"]
+        )
+
+    @staticmethod
+    def _to_minimax_message(
+        message: BaseMessage,
+    ) -> dict[str, str]:
+        if isinstance(message, HumanMessage):
+            role = "user"
+
+        elif isinstance(message, AIMessage):
+            role = "assistant"
+
+        elif isinstance(message, SystemMessage):
+            role = "system"
+
+        else:
+            raise TypeError(
+                "Unsupported message type for MiniMax: "
+                f"{type(message).__name__}"
+            )
+
+        return {
+            "role": role,
+            "content": str(message.content),
+        }

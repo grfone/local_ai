@@ -6,7 +6,10 @@ from typing_extensions import TypedDict
 
 
 class AgentState(TypedDict):
-    messages: Annotated[list[BaseMessage], add_messages]
+    messages: Annotated[
+        list[BaseMessage],
+        add_messages,
+    ]
 
     status: Literal[
         "questioning",

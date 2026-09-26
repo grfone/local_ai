@@ -4,14 +4,13 @@ import time
 import urllib.error
 import urllib.request
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage
 from langchain_ollama import ChatOllama
 
-from src.models.messages import Message
-from src.providers.base import BaseProvider
+from src.models.model import Model
 
 
-class OllamaProvider(BaseProvider):
+class OllamaModel(Model):
 
     def __init__(
         self,
@@ -23,17 +22,24 @@ class OllamaProvider(BaseProvider):
         self.host = host
         self.port = port
 
-        # Local Ollama installation
         self.project_root = os.getcwd()
+
         self.ollama_bin = os.path.join(
-            self.project_root, "ollama", "bin", "ollama"
-        )
-        self.models_dir = os.path.join(
-            self.project_root, "ollama_models"
+            self.project_root,
+            "ollama",
+            "bin",
+            "ollama",
         )
 
-    def predict(self, messages: list[Message]) -> str:
-        # Make sure Ollama is running
+        self.models_dir = os.path.join(
+            self.project_root,
+            "ollama_models",
+        )
+
+    def generate(
+        self,
+        messages: list[BaseMessage],
+    ) -> str:
         self._start_server()
 
         llm = ChatOllama(
@@ -42,25 +48,26 @@ class OllamaProvider(BaseProvider):
             num_predict=50000,
         )
 
-        response = llm.invoke(
-            self._to_langchain_messages(messages)
-        )
+        response = llm.invoke(messages)
 
-        return response.content
+        return str(response.content)
 
-
-    def _start_server(self):
+    def _start_server(self) -> None:
         env = os.environ.copy()
         env["OLLAMA_MODELS"] = self.models_dir
 
-        # Check if Ollama is already running
         try:
             urllib.request.urlopen(
                 f"http://{self.host}:{self.port}/api/tags",
                 timeout=1,
             )
+
             return
-        except (urllib.error.URLError, TimeoutError):
+
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+        ):
             pass
 
         print("Starting Ollama server...")
@@ -72,31 +79,25 @@ class OllamaProvider(BaseProvider):
             stderr=subprocess.DEVNULL,
         )
 
-        # Wait for Ollama to become available
         for _ in range(30):
             try:
                 urllib.request.urlopen(
                     f"http://{self.host}:{self.port}/api/tags",
                     timeout=1,
                 )
+
                 print("Ollama server is ready.")
+
                 return
-            except (urllib.error.URLError, TimeoutError):
+
+            except (
+                urllib.error.URLError,
+                TimeoutError,
+            ):
                 time.sleep(1)
 
         server.terminate()
-        raise RuntimeError("Ollama server failed to start.")
 
-    @staticmethod
-    def _to_langchain_messages(messages: list[Message]):
-        # Convert our messages to LangChain messages
-        role_map = {
-            "system": SystemMessage,
-            "user": HumanMessage,
-            "assistant": AIMessage,
-        }
-
-        return [
-            role_map[message.role](content=message.content)
-            for message in messages
-        ]
+        raise RuntimeError(
+            "Ollama server failed to start."
+        )
